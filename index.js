@@ -125,27 +125,41 @@ module.exports = function SkipperAzure( globalOptions ) {
       if( !newFile.byteCount ){
         newFile.byteCount = newFile._readableState.length;
       }
+	  
+	  if(options.createContainerIfNotExists) {
+		   blobService.createContainerIfNotExists(options.container, {
+            publicAccessLevel: options.containerPublicAccessLevel
+        }, function(error, result, response) {
+            if (!error) {
+                // if result = true, container was created.
+                // if result = false, container already existed.
 
-      var uploader = blobService.createBlockBlobFromStream( options.container,
-        newFile.fd, newFile, newFile.byteCount, uploadOptions, function( err, result, response ) {
-          if( err ) {
-            console.log( ('Receiver: Error writing ' + newFile.filename + ' :: Cancelling upload and cleaning up already-written bytes ... ' ).red );
-            receiver.emit( 'error', err );
-            return;
-          }
+				var uploader = blobService.createBlockBlobFromStream( options.container,
+		        options.blobName, newFile, newFile.byteCount, uploadOptions, function( err, result, response ) {
+		          if( err ) {
+		            console.log( ('Receiver: Error writing ' + newFile.filename + ' :: Cancelling upload and cleaning up already-written bytes ... ' ).red );
+		            receiver.emit( 'error', err );
+		            return;
+		          }
+		
+		          newFile.extra = response;
+		          newFile.size = new Number( newFile.size );
+		
+		          var endedAt = new Date();
+		          var duration = ( endedAt - startedAt ) / 1000;
+		
+		          //console.log( 'UPLOAD took ' + duration + ' seconds .. ' );
+		
+		          // TODO ?? is this line necessary: skipper-s3/index.js line: 254 does not use it. But skipper-adapter-tests do not work without this line.
+		          receiver.emit( 'finish', err, result, response );
+		          done();
+		        });
+            }
 
-          newFile.extra = response;
-          newFile.size = new Number( newFile.size );
-
-          var endedAt = new Date();
-          var duration = ( endedAt - startedAt ) / 1000;
-
-          //console.log( 'UPLOAD took ' + duration + ' seconds .. ' );
-
-          // TODO ?? is this line necessary: skipper-s3/index.js line: 254 does not use it. But skipper-adapter-tests do not work without this line.
-          receiver.emit( 'finish', err, result, response );
-          done();
         });
+	  }
+	  
+
     };
     return receiver;
   }
